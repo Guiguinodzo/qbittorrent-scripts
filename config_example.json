@@ -1,0 +1,26 @@
+{
+  "qbittorrent": {
+    "host": "localhost",
+    "port": 8080,
+    "username": "toto",
+    "password": "password"
+  },
+  "trackers": {
+    "some-tracker": {
+      "api_key": "<some-tracker api key>",
+      "tag": "some-tracker",
+      "urls": [
+        "http://tracker.some-tracker.org:8080/${API_KEY}/announce",
+        "http://tracker.some-tracker-fallback.net:8080/${API_KEY}/announce"
+      ]
+    },
+    "another-tracker": {
+      "api_key": "<another-tracker api key>",
+      "tag": "another-tracker",
+      "urls": [
+        "https://tracker.another-tracker.org/a/${API_KEY}/announce",
+        "https://tracker.another-tracker-fallback.org/a/${API_KEY}/announce"
+      ]
+    }
+  }
+}
