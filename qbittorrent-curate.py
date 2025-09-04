@@ -5,18 +5,19 @@ import qbittorrentapi
 
 from lib.config import read_config
 from lib.export import TorrentExport, parse_torrent_export_from_csv_line, TORRENT_EXPORT_HEADER
-from lib.cleaning_rules import TRACKER_CLEANING_RULES
+from lib.cleaning_rules import TRACKER_CLEANING_RULES, CleaningRules
 from lib.torrent_efficiency import TorrentEfficiency
 from lib.misc import human_readable_size
 
 MINIMUM_INTERVAL_BETWEEN_STATS = 3600 * 24
 
 
-def parse_file(filename) -> dict[str, TorrentExport]:
+def parse_file(filename: str, check_header: bool = True) -> dict[str, TorrentExport]:
     stats_by_hash = {}
     with open(filename, "r") as f:
-        if f.readline() != TORRENT_EXPORT_HEADER:
-            raise Exception("Invalid file format")
+        header = f.readline().strip()
+        if check_header and header != TORRENT_EXPORT_HEADER:
+            raise Exception(f"Invalid file format.\nExpected header: {TORRENT_EXPORT_HEADER}\nFound header   : {header}")
         for line in f:
             torrent_export = parse_torrent_export_from_csv_line(line)
             stats_by_hash[torrent_export.hash] = torrent_export
@@ -28,13 +29,13 @@ def is_torrent_potentially_removable(torrent: TorrentEfficiency) -> bool:
     if torrent.private_tracker is None or torrent.private_tracker not in TRACKER_CLEANING_RULES.keys():
         return False
 
-    rules = TRACKER_CLEANING_RULES[torrent.private_tracker]
+    rules : CleaningRules = TRACKER_CLEANING_RULES[torrent.private_tracker]
 
     # A torrent should either have been seeding for a sufficient amount of time or have minimum ratio before being
     # considered for removal.
     # TODO : age != seeding time, export should include completedOn timestamp
     return ((torrent.seeding_time > rules.minimumAge or torrent.ratio > rules.minimumRatio)
-            and not any(tag in rules.exclude_tags for tag in torrent.tags))
+            and torrent.category not in rules.exclude_categories )
 
 
 config = {}
@@ -97,14 +98,29 @@ for hash in new_stats.keys():
     uploaded_since = new_statsN.uploaded - old_statsN.uploaded
     upload_speed = uploaded_since / delta
 
-    torrents_efficiency[hash] = TorrentEfficiency(hash, new_statsN.tracker, new_statsN.tags, age, seeding_time,
-                                                  new_statsN.ratio,
-                                                  upload_speed, new_statsN.size)
+    torrents_efficiency[hash] = TorrentEfficiency(hash, new_statsN.tracker, new_statsN.category, new_statsN.tags, age,
+                                                  seeding_time, new_statsN.ratio, upload_speed, new_statsN.size)
 
-for torrent in torrents_efficiency.values():
+inefficient_torrents = []
+threshold = 0.0
+freeable_size = 0
+
+for torrent in sorted(torrents_efficiency.values(), key=lambda torrent: torrent.efficiency, reverse=True):
     if is_torrent_potentially_removable(torrent):
         print(
-            f"Potentially removable torrent: {torrent.hash} ({torrent.private_tracker}) : {torrent.efficiency} ({human_readable_size(torrent.size)})")
+            f"Potentially removable torrent: {torrent.hash} ({torrent.private_tracker} / {torrent.category}) : {torrent.human_readable_efficiency()} (Size: {human_readable_size(torrent.size)}, age: {torrent.human_readable_age()}, seeding time: {torrent.human_readable_seeding_time()})")
+        if threshold >= torrent.efficiency >= 0 and "inefficient" not in torrent.tags:
+            print(f"Adding tag 'inefficient' to {torrent.hash} ({torrent.private_tracker})")
+            inefficient_torrents.append(torrent)
+            freeable_size += torrent.size
+
+
+torrents_hashes = [torrent.hash for torrent in inefficient_torrents]
+print(f"Found {len(torrents_hashes)} torrents to be tagged as 'inefficient'. Would free {human_readable_size(freeable_size)}")
+for torrent_hash in torrents_hashes:
+    qbt_client.torrents_addTags(hashes=[torrent_hash], tags=["inefficient"])
+
+# todo: apprise/pushover
 
     # another script (or this one, tbd) will compare with previous stats
     # uploaded_since = statsN.uploaded - statsN-1.uploaded

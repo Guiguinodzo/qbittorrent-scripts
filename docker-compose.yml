@@ -1,0 +1,16 @@
+services:
+  qbittorrent-cron:
+    image: qbittorrent-cron
+    container_name: qbittorrent-cron
+    restart: unless-stopped
+    user: torrents:users
+    environment:
+      QBITTORRENT_HOST: localhost
+      QBITTORRENT_PORT: 8082
+      QBITTORRENT_USERNAME: admin
+      QBITTORRENT_PASSWORD:
+    build:
+      context: .
+    volumes:
+      - .config.json:/scripts/config.json
+      - ./crons:/etc/cron.d

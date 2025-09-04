@@ -44,6 +44,7 @@ with open(filename, "x") as f:
             private_tracker_of_torrent = matching_private_trackers[0]
 
         torrent_id = torrent.hash
+        category = torrent.info.category
         tags = [t.strip() for t in torrent.info.tags.split(",") if t.strip()]
         uploaded = torrent.uploaded
         downloaded = torrent.downloaded
@@ -51,15 +52,16 @@ with open(filename, "x") as f:
         tracker = private_tracker_of_torrent.name if private_tracker_of_torrent is not None else "public"
         added_on = torrent.added_on  # epoch
         completed_on = torrent.completion_on
-        complete = torrent.amount_left == 0
+        complete = torrent.amount_left == 0 and torrent.size != 0
 
         if completed_on > 0 and not complete:
             print(f"ERROR: torrent {torrent_id} has completed_on ({completed_on}) but is not complete")
 
-        torrent_export = TorrentExport(torrent_id, size, downloaded, uploaded, complete, tracker, tags, added_on,
+        torrent_export = TorrentExport(torrent_id, size, downloaded, uploaded, complete, tracker, category, tags, added_on,
                                        completed_on, now)
         # write line to file
         f.write(f"{torrent_export.asCsvLine()}\n")
 
         print(torrent_export.asCsvLine())
 
+print(f"Wrote export to {filename}")
