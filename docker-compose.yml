@@ -1,6 +1,6 @@
 services:
   qbittorrent-cron:
-    image: qbittorrent-cron
+    image: qbittorrent-cron:latest
     container_name: qbittorrent-cron
     restart: unless-stopped
     user: torrents:users
@@ -12,5 +12,5 @@ services:
     build:
       context: .
     volumes:
-      - .config.json:/scripts/config.json
+      - config.json:/scripts/config.json
       - ./crons:/etc/cron.d
